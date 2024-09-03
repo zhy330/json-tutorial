@@ -32,8 +32,8 @@ static int lept_parse_null(lept_context* c, lept_value* v) {
 static int lept_parse_value(lept_context* c, lept_value* v) {
     switch (*c->json) {
         case 'n':  return lept_parse_null(c, v);
-        case 'f':  return;
-        case 't':  return;
+        case 'f':  return LEPT_PARSE_INVALID_VALUE;
+        case 't':  return LEPT_PARSE_INVALID_VALUE;
         case '\0': return LEPT_PARSE_EXPECT_VALUE;
         default:   return LEPT_PARSE_INVALID_VALUE;
     }
