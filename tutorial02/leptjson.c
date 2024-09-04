@@ -74,7 +74,33 @@ static int lept_parse_literal(lept_context* c, lept_value* v, char ch) {
 
 static int lept_parse_number(lept_context* c, lept_value* v) {
     char* end;
+    const char* tmp;
     /* \TODO validate number */
+    if (c->json[0] == '+' || c->json[0] == 'I' || c->json[0] == 'i' || c->json[0] == 'N' || c->json[0] == 'n' || c->json[0] == '.') {
+        v->type = LEPT_NULL;
+        return LEPT_PARSE_INVALID_VALUE;
+    }
+
+    if (c->json[0] == '0') {
+        if (c->json[1] != '\0' && c->json[1] != '.' && c->json[1] != 'E' && c->json[1] != 'e') {
+            v->type = LEPT_NULL;
+            return LEPT_PARSE_ROOT_NOT_SINGULAR;
+        }
+    }
+
+    tmp = c->json;
+    while (*tmp != '.' && *tmp != '\0')
+    {
+        ++tmp;
+    }
+    if (*tmp == '.') {
+        ++tmp;
+        if (*tmp < '0' || *tmp > '9') {
+            v->type = LEPT_NULL;
+            return LEPT_PARSE_INVALID_VALUE;
+        }
+    }
+
     v->n = strtod(c->json, &end);
     if (c->json == end)
         return LEPT_PARSE_INVALID_VALUE;
