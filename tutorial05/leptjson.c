@@ -255,14 +255,12 @@ int lept_parse(lept_value* v, const char* json) {
 
 void lept_free(lept_value* v) {
     int i;
-    lept_value* tmp;
     assert(v != NULL);
     if (v->type == LEPT_STRING)
         free(v->u.s.s);
     else if (v->type == LEPT_ARRAY) {
         for (i = 0; i < v->u.a.size; ++i) {
-            tmp = lept_get_array_element(v, i);
-            lept_free(tmp);
+            lept_free(&v->u.a.e[i]);
         }
     }
     v->type = LEPT_NULL;
