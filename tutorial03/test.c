@@ -175,7 +175,6 @@ static void test_parse_invalid_string_char() {
 #if 1
     TEST_ERROR(LEPT_PARSE_INVALID_STRING_CHAR, "\"\x01\"");
     TEST_ERROR(LEPT_PARSE_INVALID_STRING_CHAR, "\"\x1F\"");
-    TEST_ERROR(LEPT_PARSE_INVALID_STRING_CHAR, "\"\"");
 #endif
 }
 
