@@ -17,6 +17,39 @@
 #define ISDIGIT(ch)         ((ch) >= '0' && (ch) <= '9')
 #define ISDIGIT1TO9(ch)     ((ch) >= '1' && (ch) <= '9')
 #define PUTC(c, ch)         do { *(char*)lept_context_push(c, sizeof(char)) = (ch); } while(0)
+#define GETNUMBYCHAR(num, ch)         do {  switch (ch) { case '0': num = 0; break; \
+                                                          case '1': num = 1; break; \
+                                                          case '2': num = 2; break; \
+                                                          case '3': num = 3; break; \
+                                                          case '4': num = 4; break; \
+                                                          case '5': num = 5; break; \
+                                                          case '6': num = 6; break; \
+                                                          case '7': num = 7; break; \
+                                                          case '8': num = 8; break; \
+                                                          case '9': num = 9; break; \
+                                                          case 'A': num = 10; break; \
+                                                          case 'B': num = 11; break; \
+                                                          case 'C': num = 12; break; \
+                                                          case 'D': num = 13; break; \
+                                                          case 'E': num = 14; break; \
+                                                          case 'F': num = 15; break; \
+                                                          default: num = -1; break;} \
+                                                        } while (0)
+/*
+static const int charToNum[256] = {
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9, -1, -1, -1, -1, -1, -1,
+    -1, 10, 11, 12, 13, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, 10, 11, 12, 13, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
+};
+*/
+
+#define IS_LOW_SURROGATE(num)         (0xDC00 <= num && 0xDFFF >= num)
+#define IS_HIGH_SURROGATE(num)        (0xD800 <= num && 0xDBFF >= num)
 
 typedef struct {
     const char* json;
@@ -90,13 +123,87 @@ static int lept_parse_number(lept_context* c, lept_value* v) {
     return LEPT_PARSE_OK;
 }
 
-static const char* lept_parse_hex4(const char* p, unsigned* u) {
+static unsigned get_surrogate(const char* p, int* success) {
+    unsigned ans = 0;
+    /*unsigned num;*/
+    int i;
+    char ch;
+    *success = 1;
+    for (i = 0; i < 4; ++i) {
+        ans <<= 4;
+        /*num = charToNum[(int)*p];
+        if (num == -1) {
+            *success = 0;
+            return 0;
+        }*/
+        ch = *p++;
+        if      (ch >= '0' && ch <= '9')  ans += ch - '0';
+        else if (ch >= 'A' && ch <= 'F')  ans += ch - ('A' - 10);
+        else if (ch >= 'a' && ch <= 'f')  ans += ch - ('a' - 10);
+        else {
+            *success = 0;
+            return 0;
+        }
+    }
+    return ans;
+}
+
+static const char* lept_parse_hex4(const char* p, unsigned* u, unsigned* ret) {
     /* \TODO */
+    int success;
+    unsigned first = get_surrogate(p, &success);
+    unsigned second;
+    *ret = LEPT_PARSE_OK;
+    if (success == 0) {
+        *ret = LEPT_PARSE_INVALID_UNICODE_HEX; 
+        return 0;
+    } 
+    p += 4;
+    if (IS_HIGH_SURROGATE(first)) {
+        if (p[0] == '\\' && p[1] == 'u') {
+            p += 2;
+            second = get_surrogate(p, &success);
+            p += 4;
+            if (success == 0) {
+                *ret = LEPT_PARSE_INVALID_UNICODE_HEX; 
+                return 0;
+            } 
+            if (!IS_LOW_SURROGATE(second)) {
+                *ret = LEPT_PARSE_INVALID_UNICODE_SURROGATE; 
+                return 0;
+            }
+            *u = 0x10000 + (first - 0xD800) * 0x400 + (second - 0xDC00);
+        } else {
+            *ret = LEPT_PARSE_INVALID_UNICODE_SURROGATE; 
+            return 0;
+        }
+    } else if (IS_LOW_SURROGATE(first)) {
+        *ret = LEPT_PARSE_INVALID_UNICODE_SURROGATE; 
+        return 0;
+    } else {
+        *u = first;
+    }
     return p;
 }
 
 static void lept_encode_utf8(lept_context* c, unsigned u) {
     /* \TODO */
+    if (u <= 0x007F) {
+        PUTC(c, 0x0  | ( u         & 0x7F));
+    } else if (u >= 0x0080 && u <= 0x07FF) {
+        PUTC(c, 0xC0 | ( u >>  6  & 0xFF));
+        PUTC(c, 0x80 | ( u        & 0x3F));
+    } else if (u >= 0x0800 && u <= 0xFFFF) {
+        PUTC(c, 0xE0 | ((u >> 12) & 0xFF)); /* 0xE0 = 11100000 */
+        PUTC(c, 0x80 | ((u >>  6) & 0x3F)); /* 0x80 = 10000000 */
+        PUTC(c, 0x80 | ( u        & 0x3F)); /* 0x3F = 00111111 */
+    } else if (u >= 0x10000 && u <= 0x10FFFF){
+        PUTC(c, 0xF0 | ( u >> 18  & 0xFF));
+        PUTC(c, 0x80 | ( u >> 12  & 0x3F));
+        PUTC(c, 0x80 | ( u >>  6  & 0x3F));
+        PUTC(c, 0x80 | ( u        & 0x3F));
+    }
+    /* assert(u > 0x10FFF); */
 }
 
 #define STRING_ERROR(ret) do { c->top = head; return ret; } while(0)
@@ -104,6 +211,7 @@ static void lept_encode_utf8(lept_context* c, unsigned u) {
 static int lept_parse_string(lept_context* c, lept_value* v) {
     size_t head = c->top, len;
     unsigned u;
+    unsigned ret;
     const char* p;
     EXPECT(c, '\"');
     p = c->json;
@@ -126,8 +234,8 @@ static int lept_parse_string(lept_context* c, lept_value* v) {
                     case 'r':  PUTC(c, '\r'); break;
                     case 't':  PUTC(c, '\t'); break;
                     case 'u':
-                        if (!(p = lept_parse_hex4(p, &u)))
-                            STRING_ERROR(LEPT_PARSE_INVALID_UNICODE_HEX);
+                        if (!(p = lept_parse_hex4(p, &u, &ret)))
+                            STRING_ERROR(ret);
                         /* \TODO surrogate handling */
                         lept_encode_utf8(c, u);
                         break;
