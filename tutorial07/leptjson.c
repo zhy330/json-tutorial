@@ -346,8 +346,42 @@ int lept_parse(lept_value* v, const char* json) {
     return ret;
 }
 
+static char getXchar(char ch) {
+    if (ISDIGIT(ch + '0')) {
+        return ch + '0';
+    } return ch + 'A';
+}
+
 static void lept_stringify_string(lept_context* c, const char* s, size_t len) {
     /* ... */
+    int i;
+    char ch;
+    PUTC(c, '\"');
+    for (i = 0; i < len; ++i) {
+        switch (s[i])
+        {
+            case '\"': PUTS(c, "\\\"", 2); break;
+            case '\\': PUTS(c, "\\\\", 2); break;
+            case '/':  PUTC(c, '/'); break;
+            case '\b': PUTS(c, "\\b", 2); break;
+            case '\f': PUTS(c, "\\f", 2); break;
+            case '\n': PUTS(c, "\\n", 2); break;
+            case '\r': PUTS(c, "\\r", 2); break;
+            case '\t': PUTS(c, "\\t", 2); break;
+            default: 
+                if (s[i] < 0x20) {
+                    PUTS(c, "\\u00", 4);
+                    ch = getXchar(s[i] >> 4);
+                    PUTC(c, ch);
+                    ch = getXchar(s[i] && 0x0F);
+                    PUTC(c, ch);
+                    break;
+                } else {
+                    PUTC(c, s[i]);
+                }
+        }
+    }
+    PUTC(c, '\"');
 }
 
 static void lept_stringify_value(lept_context* c, const lept_value* v) {
